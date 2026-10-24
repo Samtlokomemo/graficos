@@ -56,6 +56,7 @@ scene.add(dirLight2);
 
 // 6. Mixer para animações caso existam
 let mixer = null;
+let dogMixer = null;    // Animações do cachorro
 const clock = new THREE.Clock();
 
 // 7. Carregamento do Modelo GLTF
@@ -97,7 +98,7 @@ loader.load(
 
     // Ajusta a câmera e os limites do OrbitControls com base no tamanho do objeto
     const maxDim = Math.max(size.x, size.y, size.z);
-    const distance = maxDim > 0 ? maxDim * 2.2 : 15;
+    const distance = maxDim > 0 ? maxDim * 1.2 : 15;
 
     camera.near = Math.max(0.01, distance / 100);
     camera.far = Math.max(1000, distance * 50);
@@ -130,6 +131,79 @@ loader.load(
   }
 );
 
+  // 8. CARREGAMENTO DO CACHORRO ANIMADO
+
+const dogPath = './modelos/mundo/cachorro/source/cachorro.glb';
+
+console.log('Iniciando carregamento do cachorro...');
+
+loader.load(
+  dogPath,
+
+  (gltf) => {
+    const dog = gltf.scene;
+
+    console.log('Cachorro carregado com sucesso!');
+    console.log('Animações encontradas:', gltf.animations.length);
+
+    // Exibe os nomes das animações no console
+    gltf.animations.forEach((clip, index) => {
+      console.log(
+        `Animação ${index + 1}: ${clip.name}`,
+        `Duração: ${clip.duration.toFixed(2)} segundos`
+      );
+    });
+
+    // Calcula o tamanho original do cachorro
+    const dogBox = new THREE.Box3().setFromObject(dog);
+    const dogSize = new THREE.Vector3();
+    dogBox.getSize(dogSize);
+
+    console.log('Dimensões do cachorro:', dogSize);
+
+    // Ajusta o tamanho do modelo
+    // A escala será refinada depois de visualizar a cena
+    const maxDogDim = Math.max(
+      dogSize.x,
+      dogSize.y,
+      dogSize.z
+    );
+
+    if (maxDogDim > 0) {
+      const scale = 2 / maxDogDim;
+      dog.scale.setScalar(scale);
+    }
+
+    // Posiciona o cachorro na cena
+    dog.position.set(-15, 0, 20);
+
+    scene.add(dog);
+
+    // Prepara as animações do cachorro
+    if (gltf.animations && gltf.animations.length > 0) {
+      dogMixer = new THREE.AnimationMixer(dog);
+
+      // Por enquanto, executa somente a primeira animação
+      dogMixer.clipAction(gltf.animations[0]).play();
+
+      console.log(
+        'Animação inicial:',
+        gltf.animations[0].name
+      );
+    } else {
+      console.warn(
+        'O arquivo do cachorro não contém animações.'
+      );
+    }
+  },
+
+  undefined,
+
+  (error) => {
+    console.error('Erro ao carregar o cachorro:', error);
+  }
+);
+
 // 8. Redimensionamento Responsivo
 window.addEventListener('resize', () => {
   const width = window.innerWidth;
@@ -150,6 +224,11 @@ function animate() {
   if (mixer) {
     mixer.update(delta);
   }
+
+  // Atualiza as animações do cachorro
+if (dogMixer) {
+  dogMixer.update(delta);
+}
 
   controls.update();
   renderer.render(scene, camera);
