@@ -16,7 +16,21 @@
   </script>
 </head>
 <body>
-<canvas id="canvas3d"></canvas>
-<script type="module" src="./main.js"></script>
+  <canvas id="canvas3d"></canvas>
+
+  <!-- Painel de Controle de Animações do Personagem -->
+  <div id="anim-panel">
+    <div class="panel-header">
+      <span class="panel-title">Animações do Personagem</span>
+    </div>
+    <div class="btn-group">
+      <button class="anim-btn active" data-anim="waveanimation">👋 Acenar</button>
+      <button class="anim-btn" data-anim="walkanimation">🚶 Andar</button>
+      <button class="anim-btn" data-anim="sitanimation">🪑 Sentar</button>
+      <button class="anim-btn stop-btn" data-anim="stop">⏹️ Parar</button>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
