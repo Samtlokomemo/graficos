@@ -84,6 +84,43 @@ let dogMixer = null;          // Animações do cachorro
 let samuelMixer = null;       // Animações do modelo Blockbench
 let samuelModel = null;       // Referência ao modelo 3D do Samuel
 let selectionRing = null;     // Indicador visual de seleção
+let hugoMixer = null;
+let hugoModel = null;
+
+// Controles de movimentação do Hugo
+const hugoKeys = {
+  w: false,
+  a: false,
+  s: false,
+  d: false
+};
+
+const hugoSpeed = 0.08;
+
+// Animações de parado e andando do Hugo
+let hugoIdleAnimationName = null;
+let hugoWalkAnimationName = null;
+let hugoIsMoving = false;
+
+window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+
+  if (key in hugoKeys) {
+    hugoKeys[key] = true;
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  const key = e.key.toLowerCase();
+
+  if (key in hugoKeys) {
+    hugoKeys[key] = false;
+  }
+});
+
+const hugoActions = {};
+let currentHugoAction = null;
+const hugoAnimationNames = [];
 const samuelActions = {};     // Mapa de ações do modelo
 let currentSamuelAction = null;
 const clock = new THREE.Clock();
@@ -267,6 +304,111 @@ loader.load(
   }
 );
 
+// Carregamento do personagem do Hugo
+const hugoPath = './modelos/hugo/animated_humanoid_robot.glb';
+
+console.log('Iniciando carregamento do personagem do Hugo...');
+
+loader.load(
+  hugoPath,
+  (gltf) => {
+    hugoModel = gltf.scene;
+
+    console.log('Personagem do Hugo carregado com sucesso!', gltf);
+
+    // Ajusta o tamanho do personagem
+    const hugoBox = new THREE.Box3().setFromObject(hugoModel);
+    const hugoSize = new THREE.Vector3();
+    hugoBox.getSize(hugoSize);
+
+    const maxHugoDim = Math.max(hugoSize.x, hugoSize.y, hugoSize.z);
+    if (maxHugoDim > 0) {
+      hugoModel.scale.setScalar(3.5 / maxHugoDim);
+    }
+
+    // Posiciona o personagem no mundo
+    hugoModel.position.set(-8, 0, 19);
+    scene.add(hugoModel);
+
+    // Carrega as animações do personagem
+    if (gltf.animations && gltf.animations.length > 0) {
+      hugoMixer = new THREE.AnimationMixer(hugoModel);
+
+      gltf.animations.forEach((clip, index) => {
+        const name = clip.name || `animacao${index + 1}`;
+        console.log(`Animação do Hugo: ${name}`);
+        hugoActions[name] = hugoMixer.clipAction(clip);
+        hugoAnimationNames.push(name);
+      });
+
+      // Identifica as animações de parado e andando
+      hugoIdleAnimationName = hugoAnimationNames.find(name =>
+        /idle|stand|wait|parado|standing/i.test(name)
+      );
+
+      hugoWalkAnimationName = hugoAnimationNames.find(name =>
+        /walk|walking|run|running|andar|caminh/i.test(name)
+      );
+
+      // Usa alternativas caso os nomes sejam diferentes
+      if (!hugoIdleAnimationName && hugoAnimationNames.length > 0) {
+        hugoIdleAnimationName = hugoAnimationNames[0];
+      }
+
+      if (!hugoWalkAnimationName && hugoAnimationNames.length > 1) {
+        hugoWalkAnimationName = hugoAnimationNames.find(
+          name => name !== hugoIdleAnimationName
+        );
+      }
+
+      console.log('Animação de parado:', hugoIdleAnimationName);
+      console.log('Animação de caminhada:', hugoWalkAnimationName);
+
+      // Inicia a animação de parado
+      if (hugoIdleAnimationName) {
+        playHugoAnimation(hugoIdleAnimationName);
+      }
+    } else {
+      console.warn('O personagem do Hugo não possui animações.');
+    }
+  },
+  undefined,
+  (error) => {
+    console.error('Erro ao carregar o personagem do Hugo:', error);
+  }
+);
+
+// Função para trocar as animações do Hugo
+function playHugoAnimation(name) {
+  const targetAction = hugoActions[name];
+  if (!targetAction) {
+    console.warn('Animação do Hugo não encontrada:', name);
+    return;
+  }
+
+  if (currentHugoAction && currentHugoAction !== targetAction) {
+    currentHugoAction.fadeOut(0.2);
+  }
+
+  targetAction.reset().fadeIn(0.2).play();
+  currentHugoAction = targetAction;
+}
+
+// Controla as animações de parado e andando do Hugo
+function updateHugoMovementAnimation(isMoving) {
+  if (hugoIsMoving === isMoving) return;
+
+  hugoIsMoving = isMoving;
+
+  const animationName = isMoving
+    ? hugoWalkAnimationName
+    : hugoIdleAnimationName;
+
+  if (animationName) {
+    playHugoAnimation(animationName);
+  }
+}
+
 // Função para transicionar entre animações com fade
 function playSamuelAnimation(name) {
   if (name === 'stop') {
@@ -317,6 +459,10 @@ window.addEventListener('keydown', (e) => {
   if (e.key === '2') playSamuelAnimation('walkanimation');
   if (e.key === '3') playSamuelAnimation('sitanimation');
   if (e.key === '0' || e.key === ' ') playSamuelAnimation('stop');
+
+  if (e.key === '4' && hugoAnimationNames[0]) playHugoAnimation(hugoAnimationNames[0]);
+  if (e.key === '5' && hugoAnimationNames[1]) playHugoAnimation(hugoAnimationNames[1]);
+  if (e.key === '6' && hugoAnimationNames[2]) playHugoAnimation(hugoAnimationNames[2]);
 });
 
 // Sistema de Seleção do Personagem via Clique e Raycaster
@@ -416,6 +562,51 @@ function animate() {
 
   if (samuelMixer) {
     samuelMixer.update(delta);
+  }
+
+  if (hugoMixer) {
+    hugoMixer.update(delta);
+  }
+
+  // Movimentação do personagem do Hugo
+  if (hugoModel) {
+    let moveX = 0;
+    let moveZ = 0;
+
+    if (hugoKeys.w) moveZ -= 1;
+    if (hugoKeys.s) moveZ += 1;
+    if (hugoKeys.a) moveX -= 1;
+    if (hugoKeys.d) moveX += 1;
+
+    const isMoving = moveX !== 0 || moveZ !== 0;
+
+    // Alterna entre parado e andando
+    updateHugoMovementAnimation(isMoving);
+
+    if (isMoving) {
+      // Evita andar mais rápido na diagonal
+      const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+      moveX /= length;
+      moveZ /= length;
+
+      // Move o personagem
+      const movementScale = delta * 60;
+      hugoModel.position.x += moveX * hugoSpeed * movementScale;
+      hugoModel.position.z += moveZ * hugoSpeed * movementScale;
+
+      // Calcula a direção para a qual o personagem deve olhar
+      const targetRotation = Math.atan2(moveX, moveZ);
+
+      // Gira suavemente na direção do movimento
+      let angleDifference = targetRotation - hugoModel.rotation.y;
+
+      angleDifference = Math.atan2(
+        Math.sin(angleDifference),
+        Math.cos(angleDifference)
+      );
+
+      hugoModel.rotation.y += angleDifference * Math.min(1, delta * 8);
+    }
   }
 
   controls.update();
